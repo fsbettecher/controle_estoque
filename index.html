@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Controle de Estoque - Thais</title>
+<style>
+:root{--bg:#faf8f5;--card:#fff;--tx:#1f1d1a;--mut:#6f6a62;--bd:#e5e0d8;--ac:#b4532a;--on:#fff;--ok:#2f7d4f;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#171513;--card:#211e1b;--tx:#f1ece4;--mut:#a39c90;--bd:#37322c;--ac:#e08a5e;--on:#1a1209;--ok:#6fcf97;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#171513;--card:#211e1b;--tx:#f1ece4;--mut:#a39c90;--bd:#37322c;--ac:#e08a5e;--on:#1a1209;--ok:#6fcf97;color-scheme:dark}
+*{box-sizing:border-box}html,body{margin:0}body{background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:980px;margin:0 auto;padding:16px}
+h1{font-size:20px;margin:4px 0 12px}h2{font-size:16px;margin:18px 0 8px}
+nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+nav button,.btn{border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:8px 12px;border-radius:8px;font:inherit;cursor:pointer}
+nav button.on,.btn.pri{background:var(--ac);color:var(--on);border-color:var(--ac)}
+.btn.sm{padding:4px 8px;font-size:13px}.btn.del{color:#c0392b}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px;margin-bottom:10px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.kpi small{color:var(--mut);display:block}.kpi b{font-size:18px}
+.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:560px}
+th,td{padding:7px 8px;border-bottom:1px solid var(--bd);text-align:left;vertical-align:top}th{color:var(--mut);font-weight:600;font-size:13px}
+td.n,th.n{text-align:right;white-space:nowrap}
+.tag{display:inline-block;background:var(--ac);color:var(--on);border-radius:99px;padding:0 8px;font-size:12px}
+.mut{color:var(--mut)}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+dialog{border:1px solid var(--bd);border-radius:12px;background:var(--card);color:var(--tx);max-width:420px;width:92%}
+dialog::backdrop{background:#0008}
+label{display:block;margin:8px 0 2px;font-size:13px;color:var(--mut)}
+input,select,textarea{width:100%;padding:8px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
+input[type=checkbox]{width:auto}.chk{display:flex;gap:8px;align-items:center;margin:12px 0;color:var(--tx);font-size:15px}
+</style></head><body>
+<div id="lg" hidden style="max-width:340px;margin:12vh auto;padding:16px"><h1>Controle de Estoque</h1><div class="card"><label>E-mail</label><input id="lE" type="email" autocomplete="username"><label>Senha</label><input id="lP" type="password" autocomplete="current-password" onkeydown="if(event.key=='Enter')login()"><p id="lErr" style="color:#c0392b"></p><button class="btn pri" onclick="login()">Entrar</button></div></div>
+<main id="app" hidden>
+<div class="row" style="justify-content:space-between"><h1>Controle de Estoque</h1><button class="btn sm" id="thB" onclick="toggleTheme()"></button></div>
+<div id="st" class="mut" style="font-size:13px;margin-bottom:8px"></div>
+<nav id="nav"></nav>
+<div id="v"></div>
+<p class="mut" style="margin-top:24px;font-size:13px">Dados sincronizados na nuvem entre aparelhos. Backup opcional:
+<button class="btn sm" onclick="exp()">Exportar</button>
+<label class="btn sm" style="display:inline-block;margin:0;color:var(--tx)">Importar<input type="file" accept=".json" hidden onchange="imp(this)"></label></p>
+</main>
+
+<dialog id="dItem"><h2 id="dItemT">Item</h2>
+<label>Nome</label><input id="iN">
+<div class="row"><div style="flex:1"><label>Estoque (qtd)</label><input id="iQ" type="number" min="0"></div>
+<div style="flex:1"><label>Preço de venda (R$)</label><input id="iP" type="number" step="0.01" min="0"></div>
+</div>
+<div class="chk"><input id="iS" type="checkbox" onchange="tg()"><span>Valor compartilhado (colab)</span></div>
+<div id="iSb" hidden class="row"><div style="flex:2"><label>Nome da pessoa</label><input id="iCo"></div>
+<div style="flex:1"><label>% dela sobre a venda</label><input id="iPc" type="number" min="0" max="100" value="50"></div></div>
+<div class="row" style="margin-top:14px;justify-content:flex-end"><button class="btn" onclick="dItem.close()">Cancelar</button><button class="btn pri" onclick="saveItem()">Salvar</button></div></dialog>
+
+<dialog id="dSell"><h2 id="sT">Vender</h2>
+<div class="row"><div style="flex:1"><label>Quantidade</label><input id="sQ" type="number" min="1" value="1"></div>
+<div style="flex:1"><label>Preço unit. (R$)</label><input id="sP" type="number" step="0.01"></div>
+<div style="flex:1"><label>Data</label><input id="sD" type="date"></div></div>
+<label>Evento (para agrupar)</label><input id="sE" placeholder="Ex.: Live 13/10" list="evs">
+<datalist id="evs"></datalist>
+<label>Detalhes da venda</label><input id="sN" placeholder="Ex.: venda live 13/10 - Fulano">
+<div class="row" style="margin-top:14px;justify-content:flex-end"><button class="btn" onclick="dSell.close()">Cancelar</button><button class="btn pri" id="sBtn" onclick="doSell()">Registrar venda</button></div></dialog>
+
+<dialog id="dEdit"><h2>Editar registro</h2>
+<label>Item</label><select id="eI"></select>
+<div class="row"><div style="flex:1"><label>Quantidade</label><input id="eQ" type="number" min="1"></div>
+<div style="flex:1" id="eP0"><label>Preço unit. (R$)</label><input id="eP" type="number" step="0.01"></div>
+<div style="flex:1"><label>Data</label><input id="eD" type="date"></div></div>
+<label>Evento</label><input id="eE" list="evs">
+<label>Detalhes</label><input id="eN">
+<div class="chk"><input id="eDon" type="checkbox" onchange="$('eP0').hidden=this.checked"><span>É uma doação (sem valor)</span></div>
+<div class="chk"><input id="eSt" type="checkbox" checked><span>Ajustar o estoque conforme a alteração</span></div>
+<div class="row" style="justify-content:flex-end"><button class="btn" onclick="dEdit.close()">Cancelar</button><button class="btn pri" onclick="saveSale()">Salvar</button></div></dialog>
+
+<dialog id="dPer"><h2>Editar período</h2>
+<label>Nome</label><input id="pN">
+<label>Fechado em</label><input id="pD" type="date">
+<label>Comentários</label><textarea id="pC" rows="4"></textarea>
+<div class="row" style="margin-top:14px;justify-content:flex-end"><button class="btn" onclick="dPer.close()">Cancelar</button><button class="btn pri" onclick="savePeriod()">Salvar</button></div></dialog>
+
+<dialog id="dClose"><h2>Fechar período</h2><div id="cB"></div>
+<label>Nome do período</label><input id="cN" placeholder="Ex.: Live 13/10">
+<p class="mut" style="font-size:13px">As vendas abertas vão para o histórico fechado e os totais, lucro e repasses voltam a zero. O estoque físico restante é mantido.</p>
+<div class="row" style="justify-content:flex-end"><button class="btn" onclick="dClose.close()">Cancelar</button><button class="btn pri" onclick="doClose()">Repasses feitos, fechar</button></div></dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const SB_URL='URL_DO_PROJETO',SB_KEY='ANON_KEY';
+const sb=SB_URL.startsWith('https://')?window.supabase.createClient(SB_URL,SB_KEY):null;
+const TB=['items','sales','periods'];
+let S={items:[],sales:[],periods:[]},tab='itens',hf='abertas',q='',editId=null,sellId=null,tf='',editSale=null,editPer=null,ready=false,mail='';
+function loc(c,o){const a=S[c],i=a.findIndex(x=>x.id==o.id);i<0?a.push(o):a[i]=o}
+const err=(m,e)=>{if(e)alert(m+e.message)};
+async function putMany(c,arr){arr.forEach(o=>loc(c,o));render();for(let i=0;i<arr.length;i+=500)err('Não foi possível salvar: ',(await sb.from(c).upsert(arr.slice(i,i+500).map(o=>({id:o.id,data:o})))).error)}
+const put=(c,o)=>putMany(c,[o]);
+async function rm(c,id){S[c]=S[c].filter(x=>x.id!=id);render();err('Não foi possível excluir: ',(await sb.from(c).delete().eq('id',id)).error)}
+async function bulk(d){for(const c of TB)await putMany(c,d[c]||[])}
+async function loadAll(c){let r=[],f=0;for(;;){const{data,error}=await sb.from(c).select('data').order('id').range(f,f+999);if(error){err('Erro ao carregar: ',error);break}r=r.concat(data.map(x=>x.data));if(data.length<1000)break;f+=1000}S[c]=r}
+function stat(){$('st').innerHTML=ready?'☁️ Sincronizado · '+esc(mail)+' <button class="btn sm" onclick="logout()">Sair</button>':'☁️ Conectando...'}
+async function logout(){await sb.auth.signOut();location.reload()}
+async function login(){$('lErr').textContent='';const{error}=await sb.auth.signInWithPassword({email:$('lE').value.trim(),password:$('lP').value});if(error){$('lErr').textContent='Não foi possível entrar: '+error.message;return}start()}
+async function init(){if(!sb){$('lg').hidden=false;$('lErr').textContent='Falta configurar a URL e a chave do Supabase no início do código.';return}start()}
+async function start(){const{data:{session}}=await sb.auth.getSession();if(!session){$('lg').hidden=false;$('app').hidden=true;return}
+mail=session.user.email;$('lg').hidden=true;$('app').hidden=false;render();
+TB.forEach(c=>sb.channel('rt-'+c).on('postgres_changes',{event:'*',schema:'public',table:c},p=>{if(p.eventType=='DELETE')S[c]=S[c].filter(x=>x.id!=p.old.id);else loc(c,p.new.data);render()}).subscribe());
+await Promise.all(TB.map(loadAll));ready=true;render()}
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const R=n=>(n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const dt=d=>d?d.split('-').reverse().slice(0,2).join('/'):'';
+const rev=s=>s.qty*s.price,cost=s=>s.qty*(s.cost||0),col=s=>s.shared?rev(s)*s.pct/100:0,mine=s=>rev(s)-col(s);
+const sum=(a,f)=>a.reduce((t,x)=>t+f(x),0);
+const open=()=>S.sales.filter(s=>!s.pid);
+function pay(a){const m={};a.filter(s=>s.shared).forEach(s=>m[s.collab||'Colab']=(m[s.collab||'Colab']||0)+col(s));return m}
+function payHtml(a){const m=pay(a),k=Object.keys(m);return k.length?k.map(n=>`<div class="row"><b>${esc(n)}</b> recebe <b style="color:var(--ok)">${R(m[n])}</b></div>`).join(''):'<span class="mut">Nenhum repasse neste conjunto.</span>'}
+function kpis(a){const d=sum(a.filter(s=>s.don),s=>s.qty);a=a.filter(s=>!s.don);return `<div class="kpis"><div class="card kpi"><small>Unidades vendidas</small><b>${sum(a,s=>s.qty)}</b></div><div class="card kpi"><small>Faturamento</small><b>${R(sum(a,rev))}</b></div><div class="card kpi"><small>Repasse</small><b>${R(sum(a,col))}</b></div><div class="card kpi"><small>Lucro</small><b>${R(sum(a,mine))}</b></div><div class="card kpi"><small>Doados</small><b>${d}</b></div></div>`}
+function byEvent(a){const g={};a.forEach(s=>{const e=s.event||'Sem evento';(g[e]=g[e]||[]).push(s)});const k=Object.keys(g);if(!k.length)return'<p class="mut">Sem vendas.</p>';return `<div class="wrap"><table><tr><th>Evento</th><th class="n">Qtd</th><th class="n">Faturamento</th><th class="n">Repasse</th><th class="n">Lucro</th></tr>${k.map(e=>`<tr><td>${esc(e)}</td><td class="n">${sum(g[e].filter(s=>!s.don),s=>s.qty)}</td><td class="n">${R(sum(g[e],rev))}</td><td class="n">${R(sum(g[e],col))}</td><td class="n">${R(sum(g[e],mine))}</td></tr>`).join('')}</table></div>`}
+function salesTable(a,del){if(!a.length)return'<p class="mut">Nenhuma venda.</p>';return `<div class="wrap"><table><tr><th>Data</th><th>Item</th><th class="n">Qtd</th><th class="n">Total</th><th>Colab</th><th class="n">Lucro</th><th>Evento / detalhes</th><th></th></tr>${a.slice().sort((x,y)=>(y.date||'').localeCompare(x.date||'')).map(s=>`<tr><td>${dt(s.date)}</td><td>${esc(s.name)}</td><td class="n">${s.qty}</td><td class="n">${R(rev(s))}</td><td>${s.shared?esc(s.collab)+' '+R(col(s)):'<span class="mut">-</span>'}</td><td class="n">${R(mine(s))}</td><td>${s.don?'<span class="tag" style="background:var(--ok)">Doação</span> ':''}${s.event?`<span class="tag">${esc(s.event)}</span> `:''}${esc(s.note)}</td><td>${del?`<button class="btn sm" onclick="editSaleDlg('${s.id}')">Editar</button> <button class="btn sm del" onclick="delSale('${s.id}')">Excluir</button>`:''}</td></tr>`).join('')}</table></div>`}
+
+const V={
+itens(){const o=open();return `<div class="row" style="justify-content:space-between"><span class="mut">Vendas abertas deste período: ${o.length}</span><button class="btn pri" onclick="openItem()">+ Novo item</button></div>
+<div class="card wrap" style="margin-top:8px">${S.items.length?`<table><tr><th>Item</th><th class="n">Estoque</th><th class="n">Vendido (período)</th><th class="n">Vendido (total)</th><th class="n">Doado</th><th class="n">Preço</th><th>Colab</th><th></th></tr>${S.items.map(i=>`<tr><td>${esc(i.name)}</td><td class="n"><b>${i.qty}</b></td><td class="n">${sum(o.filter(s=>s.itemId==i.id&&!s.don),s=>s.qty)}</td><td class="n">${sum(S.sales.filter(s=>s.itemId==i.id&&!s.don),s=>s.qty)}</td><td class="n">${sum(S.sales.filter(s=>s.itemId==i.id&&s.don),s=>s.qty)}</td><td class="n">${R(i.price)}</td><td>${i.shared?`<span class="tag">${esc(i.collab)} ${i.pct}%</span>`:'<span class="mut">-</span>'}</td><td class="n"><button class="btn sm pri" onclick="openSell('${i.id}')">Vender</button> <button class="btn sm" onclick="openSell('${i.id}',1)">Doar</button> <button class="btn sm" onclick="openItem('${i.id}')">Editar</button> <button class="btn sm del" onclick="delItem('${i.id}')">x</button></td></tr>`).join('')}</table>`:'<p class="mut">Nenhum item ainda. Cadastre o primeiro em “Novo item”.</p>'}</div>`},
+periodo(){const o=open();return `${kpis(o)}<h2>Quanto cada pessoa recebe</h2><div class="card">${payHtml(o)}</div><h2>Por evento</h2><div class="card">${byEvent(o)}</div>${donHtml(o)}
+<button class="btn pri" onclick="openClose()" ${o.length?'':'disabled'}>Fechar período e zerar</button>`},
+historico(){let a=hf=='abertas'?open():hf=='todas'?S.sales:S.sales.filter(s=>s.pid==hf);if(tf)a=a.filter(s=>tf=='don'?s.don:!s.don);if(q)a=a.filter(s=>(s.name+s.event+s.note+s.collab).toLowerCase().includes(q.toLowerCase()));
+return `<div class="row"><select style="max-width:240px" onchange="hf=this.value;render()"><option value="abertas" ${hf=='abertas'?'selected':''}>Período atual (aberto)</option><option value="todas" ${hf=='todas'?'selected':''}>Todas as vendas</option>${S.periods.map(p=>`<option value="${p.id}" ${hf==p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select><input style="max-width:240px" placeholder="Buscar..." value="${esc(q)}" onchange="q=this.value;render()"><select style="max-width:170px" onchange="tf=this.value;render()"><option value="">Vendas e doações</option><option value="v" ${tf=='v'?'selected':''}>Só vendas</option><option value="don" ${tf=='don'?'selected':''}>Só doações</option></select></div><div class="card" style="margin-top:8px">${salesTable(a,true)}</div>`},
+fechados(){if(!S.periods.length)return'<p class="mut">Nenhum período fechado ainda.</p>';return S.periods.slice().sort((x,y)=>y.at.localeCompare(x.at)).map(p=>{const a=S.sales.filter(s=>s.pid==p.id);return `<div class="card"><div class="row" style="justify-content:space-between"><div><b>${esc(p.name)}</b> <span class="mut">fechado em ${new Date(p.at).toLocaleDateString('pt-BR')}</span></div><div><button class="btn sm" onclick="hf='${p.id}';q='';tf='';tab='historico';render()">Ver/editar vendas</button> <button class="btn sm" onclick="editPeriod('${p.id}')">Editar</button></div></div>${p.note?`<p class="mut">${esc(p.note)}</p>`:''}${kpis(a)}<h2>Repasses</h2>${payHtml(a)}${donHtml(a)}</div>`}).join('')}
+};
+const T={itens:'Itens',periodo:'Período atual',historico:'Histórico',fechados:'Períodos fechados'};
+function render(){stat();$('nav').innerHTML=Object.keys(T).map(k=>`<button class="${k==tab?'on':''}" onclick="tab='${k}';render()">${T[k]}</button>`).join('');$('v').innerHTML=V[tab]()}
+
+function tg(){$('iSb').hidden=!$('iS').checked}
+function openItem(id){editId=id||null;const i=S.items.find(x=>x.id==id)||{name:'',qty:0,price:'',cost:'',shared:false,collab:'',pct:50};
+$('dItemT').textContent=id?'Editar item':'Novo item';$('iN').value=i.name;$('iQ').value=i.qty;$('iP').value=i.price;$('iS').checked=i.shared;$('iCo').value=i.collab;$('iPc').value=i.pct;tg();dItem.showModal()}
+function saveItem(){const n=$('iN').value.trim();if(!n)return alert('Informe o nome.');const sh=$('iS').checked,co=$('iCo').value.trim();if(sh&&!co)return alert('Informe o nome da pessoa da colab.');
+const d={name:n,qty:+$('iQ').value||0,price:+$('iP').value||0,shared:sh,collab:sh?co:'',pct:sh?(+$('iPc').value||0):0};
+put('items',editId?{...S.items.find(x=>x.id==editId),...d}:{id:uid(),...d});dItem.close()}
+function delItem(id){if(confirm('Excluir este item? O histórico de vendas é mantido.'))rm('items',id)}
+function openSell(id,don){sellDon=!!don;sellId=id;$('sP').parentElement.hidden=sellDon;$('sBtn').textContent=sellDon?'Registrar doação':'Registrar venda';const i=S.items.find(x=>x.id==id);$('sT').textContent=(sellDon?'Doar: ':'Vender: ')+i.name+' (estoque '+i.qty+')';$('sQ').value=1;$('sP').value=sellDon?0:i.price;$('sD').value=new Date().toISOString().slice(0,10);$('sN').value='';
+$('sE').value=(open().slice(-1)[0]||{}).event||'';$('evs').innerHTML=[...new Set(S.sales.map(s=>s.event).filter(Boolean))].map(e=>`<option value="${esc(e)}">`).join('');dSell.showModal()}
+async function doSell(){const i=S.items.find(x=>x.id==sellId),qt=+$('sQ').value;if(!(qt>0))return alert('Quantidade inválida.');if(qt>i.qty)return alert('Estoque insuficiente (há '+i.qty+').');
+const sale=({id:uid(),itemId:i.id,name:i.name,qty:qt,price:sellDon?0:+$('sP').value||0,cost:0,shared:sellDon?false:i.shared,collab:i.collab,pct:i.pct,don:sellDon,date:$('sD').value,event:$('sE').value.trim(),note:$('sN').value.trim(),pid:null});
+dSell.close();await put('sales',sale);await put('items',{...i,qty:i.qty-qt})}
+async function delSale(id){const s=S.sales.find(x=>x.id==id);if(!confirm('Excluir este registro? A quantidade volta ao estoque.'))return;const i=S.items.find(x=>x.id==s.itemId);await rm('sales',id);if(i)await put('items',{...i,qty:i.qty+s.qty})}
+function openClose(){const o=open();$('cB').innerHTML=kpis(o)+'<h2>Repasses a fazer</h2>'+payHtml(o);$('cN').value=(o[0]||{}).event||'';dClose.showModal()}
+async function doClose(){const n=$('cN').value.trim()||'Período '+new Date().toLocaleDateString('pt-BR'),id=uid();const o=open();dClose.close();tab='fechados';await put('periods',{id,name:n,at:new Date().toISOString()});await putMany('sales',o.map(s=>({...s,pid:id})))}
+function exp(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:'application/json'}));a.download='estoque-backup.json';a.click()}
+function imp(el){const f=el.files[0];if(!f)return;f.text().then(async t=>{try{const d=JSON.parse(t);if(d.items&&d.sales){await bulk(d)}else alert('Arquivo inválido.')}catch(e){alert('Arquivo inválido.')}})}
+function donHtml(a){const d=a.filter(s=>s.don);return d.length?`<h2>Itens doados</h2><div class="card wrap"><table><tr><th>Data</th><th>Item</th><th class="n">Qtd</th><th>Evento / detalhes</th></tr>${d.map(s=>`<tr><td>${dt(s.date)}</td><td>${esc(s.name)}</td><td class="n">${s.qty}</td><td>${s.event?`<span class="tag">${esc(s.event)}</span> `:''}${esc(s.note)}</td></tr>`).join('')}</table></div>`:''}
+function ld(iso){const d=new Date(iso);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function editPeriod(id){const p=S.periods.find(x=>x.id==id);editPer=id;$('pN').value=p.name;$('pD').value=ld(p.at);$('pC').value=p.note||'';dPer.showModal()}
+async function savePeriod(){const p=S.periods.find(x=>x.id==editPer),n=$('pN').value.trim();if(!n)return alert('Informe o nome.');const d=$('pD').value,c=$('pC').value.trim();dPer.close();await put('periods',{...p,name:n,at:d?d+'T12:00:00':p.at,note:c})}
+function editSaleDlg(id){const s=S.sales.find(x=>x.id==id);editSale=id;
+$('eI').innerHTML=(S.items.some(i=>i.id==s.itemId)?'':`<option value="${s.itemId}">${esc(s.name)}</option>`)+S.items.map(i=>`<option value="${i.id}" ${i.id==s.itemId?'selected':''}>${esc(i.name)}</option>`).join('');
+$('eQ').value=s.qty;$('eP').value=s.price;$('eD').value=s.date||'';$('eE').value=s.event||'';$('eN').value=s.note||'';$('eDon').checked=!!s.don;$('eP0').hidden=!!s.don;$('eSt').checked=true;
+$('evs').innerHTML=[...new Set(S.sales.map(x=>x.event).filter(Boolean))].map(e=>`<option value="${esc(e)}">`).join('');dEdit.showModal()}
+async function saveSale(){const s=S.sales.find(x=>x.id==editSale),qt=+$('eQ').value;if(!(qt>0))return alert('Quantidade inválida.');
+const nid=$('eI').value,it=S.items.find(x=>x.id==nid),oi=S.items.find(x=>x.id==s.itemId),don=$('eDon').checked,adj=$('eSt').checked;
+const n={...s,itemId:nid,name:it?it.name:s.name,qty:qt,price:don?0:+$('eP').value||0,cost:0,don,date:$('eD').value,event:$('eE').value.trim(),note:$('eN').value.trim()};
+if(it&&(nid!=s.itemId||don!=!!s.don)){n.shared=don?false:it.shared;n.collab=it.collab;n.pct=it.pct}
+dEdit.close();
+if(adj){if(nid==s.itemId){if(it&&qt!=s.qty)await put('items',{...it,qty:it.qty+s.qty-qt})}else{if(oi)await put('items',{...oi,qty:oi.qty+s.qty});if(it)await put('items',{...it,qty:it.qty-qt})}}
+await put('sales',n)}
+function curTheme(){return document.documentElement.dataset.theme||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}
+function themeLabel(){$('thB').textContent=curTheme()=='dark'?'☀️ Tema claro':'🌙 Tema escuro'}
+function toggleTheme(){const t=curTheme()=='dark'?'light':'dark';document.documentElement.dataset.theme=t;themeLabel();try{localStorage.setItem('estoque-theme',t)}catch(e){}}
+try{const t=localStorage.getItem('estoque-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}
+themeLabel();
+init();
+</script></body></html>

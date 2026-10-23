@@ -1,0 +1,43 @@
+name: Publicar no GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Injetar URL e chave do Supabase
+        env:
+          SB_URL: ${{ secrets.SUPABASE_URL }}
+          SB_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          test -n "$SB_URL" && test -n "$SB_KEY" || { echo "Faltam os secrets SUPABASE_URL e SUPABASE_ANON_KEY"; exit 1; }
+          mkdir dist
+          sed -e "s|URL_DO_PROJETO|$SB_URL|" \
+              -e "s|ANON_KEY|$SB_KEY|" index.html > dist/index.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
